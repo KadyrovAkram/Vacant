@@ -116,7 +116,11 @@ for (const file of sources.keys()) {
   const base = rel.split('/').pop();
   const isEntry = rel.startsWith('scripts/') && !rel.startsWith('scripts/lib/');
   if (isEntry || rel === 'js/app.js') continue;
-  if (!new RegExp(`['"\`][^'"\`]*${base.replace('.', '\\.')}['"\`]`).test(allSource)) {
+  // Every metacharacter, not just the first dot. `replace('.', ...)` with a
+  // string pattern rewrites one occurrence, so `hours.vendor.js` went in as
+  // `hours\.vendor.js` and the second dot stayed a wildcard.
+  const literal = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!new RegExp(`['"\`][^'"\`]*${literal}['"\`]`).test(allSource)) {
     findings.push({ rel, kind: 'module imported by nothing', name: base });
   }
 }
