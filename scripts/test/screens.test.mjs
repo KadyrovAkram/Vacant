@@ -1301,10 +1301,20 @@ test('the ranked list says which question it is answering', () => {
   assert.match(line, /<p class="asked">/);
   assert.doesNotMatch(line, /<button|onclick|role=/, 'the line naming the ask is a control again');
 
-  // One vocabulary for one figure. The strip two lines below prints
-  // dur(state.needed) and the empty screen prints it too; a second rendering of
-  // the same ask on the same screen is how two lines disagree.
-  assert.match(line, /dur\(state\.needed\)/);
+  // One vocabulary for one figure, and one function for it. The strip two lines
+  // below names the ask and so does the empty screen; a second rendering of the
+  // same ask on the same screen is how two lines disagree. They all read
+  // askedFor(), which is the only place that knows "rest of day" is not a
+  // length dur() can print.
+  assert.match(line, /askedFor\(\)/);
+  assert.match(APP, /const askedFor = \(\) => \(state\.duration === 'day' \? 'the rest of the day' : dur\(state\.needed\)\);/);
+  for (const fn of ['paintList', 'emptyAnswer', 'paintCard']) {
+    assert.doesNotMatch(
+      bodyOf(fn),
+      /dur\(state\.needed\)/,
+      `${fn} renders the ask without going through askedFor()`,
+    );
+  }
 
   // It names the ASK, not an offer. state.results can hold rows shorter than
   // the ask whenever one row meets it, so "free for 2h00" over these rows is a
