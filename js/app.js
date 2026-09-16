@@ -562,6 +562,18 @@ function setSheet(px, snap) {
 // setSheet, so one call covers all of them and the class cannot lag a screen
 // behind. showAsk() calls it directly, being the one transition that hides the
 // sheet instead of sizing it.
+// The origin pill is fixed over the top of the viewport and the card and the
+// way both hang a plate there. The pill is one line wide on a desk and three
+// rows tall on a 375px phone that is also offering Pick a building, so the
+// clearance cannot be a constant: it is measured, the way js/install.js
+// measures the bar rail into --bar-h. Zero whenever the pill is not drawn,
+// which is every screen but those two and every reader whose fix landed.
+function measureNote() {
+  const note = $('note');
+  const h = note.hidden ? 0 : Math.ceil(note.getBoundingClientRect().height);
+  document.body.style.setProperty('--note-h', `${h}px`);
+}
+
 function paintMap() {
   document.body.classList.toggle('nomap', state.screen !== 'ask' && !targeted());
 }
@@ -2257,6 +2269,7 @@ function useOrigin(origin, note) {
   $('ask-where').textContent = note ?? '';
   $('ask-where').hidden = !note;
   $('ask-pick').hidden = !note;
+  measureNote();
   paintOriginBar();
 }
 
@@ -2921,6 +2934,9 @@ function showPane(name) {
   document.body.classList.remove('asking');
   const arrived = state.screen !== name;
   state.screen = name;
+  // After the class change above, because `body.asking #note` is display:none
+  // and a height read before it lifts is a height of nothing.
+  measureNote();
   syncPaneTouch();
   // Arriving re-composes the camera for the strip THIS screen leaves. Without
   // it the view stays fitted for the screen behind: leaving a room slid the walk
@@ -2943,6 +2959,10 @@ function showAsk() {
   $('ask').hidden = false;
   document.body.classList.add('asking');
   document.body.classList.remove('carding', 'waying');
+  // `body.asking #note` hides the pill, so the clearance goes back to zero.
+  // This screen has no plate to push, but the next one is painted from whatever
+  // is left here.
+  measureNote();
   $('sheet').hidden = true;
   $('back').hidden = true;
   $('menu').hidden = true;
@@ -3191,6 +3211,7 @@ function showWay(id) {
   document.body.classList.add('waying');
   const arrived = state.screen !== 'way';
   state.screen = 'way';
+  measureNote();
   syncPaneTouch();
   paintWay(id, r);
   markRows();
@@ -3865,6 +3886,7 @@ window.addEventListener('DOMContentLoaded', () => {
   attachSheet();
   attachMenu();
   window.addEventListener('resize', () => {
+    measureNote();
     if (state.screen !== 'ask') sheetHeight();
     // surface() reallocates the backing store on the next frame and the band
     // moves with the height, so a resize that does not reach the loop leaves a
