@@ -136,10 +136,22 @@ export function discoverTermLinks(indexHtml) {
   let m;
   while ((m = re.exec(indexHtml))) {
     const href = m[1];
-    const slug = href.replace(/\/+$/, '').split('/').pop();
+    // Resolved against the origin and compared as one. The test below has
+    // always asserted every url comes back on registrar.osu.edu, and nothing
+    // here enforced it: an absolute href was taken as given, and whatever it
+    // named would be fetched and written into data/cache/registrar as a
+    // Registrar hours page.
+    let url;
+    try {
+      url = new URL(href, `${ORIGIN}/`);
+    } catch {
+      continue;
+    }
+    if (url.origin !== ORIGIN) continue;
+    const slug = url.pathname.replace(/\/+$/, '').split('/').pop();
     // The index links to itself; that is the container, not a term.
     if (!slug || slug === 'classroom-pool-building-schedule') continue;
-    found.set(slug, href.startsWith('http') ? href : `${ORIGIN}${href}`);
+    found.set(slug, url.href);
   }
   return [...found.entries()].map(([slug, url]) => ({ slug, url }));
 }

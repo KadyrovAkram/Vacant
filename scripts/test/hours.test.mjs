@@ -159,6 +159,14 @@ test('term pages are discovered by link, never by constructing a slug', () => {
     'winter-break-classroom-pool-building-schedule-2025-2026',
   ]);
   assert.ok(links.every((l) => l.url.startsWith('https://registrar.osu.edu/')));
+
+  // And that holds against links the Registrar's page did not write: an offsite
+  // host, and one the origin's own name is a prefix of.
+  const offsite = discoverTermLinks(
+    '<a href="https://example.com/autumn-2099-classroom-pool-building-schedule/">no</a>' +
+    '<a href="https://registrar.osu.edu.example.com/spring-2099-classroom-pool-building-schedule/">no</a>',
+  );
+  assert.deepEqual(offsite, []);
   assert.equal(discoverTermLinks('<p>no links</p>').length, 0);
 });
 
