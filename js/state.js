@@ -932,10 +932,16 @@ export function windowPhrase(row, close) {
     };
   }
   if (row.wait > 0) {
+    // `usable` is null for a building nobody publishes hours for, and this
+    // branch sits ABOVE the hoursKnown one, so `?? 0` put "then 0 minutes" in
+    // a reader's ear for a room that simply has no published close. The
+    // paragraph above this function is the rule it broke: no branch here
+    // prints a duration for a window we cannot promise.
+    const then = row.usable == null ? '' : ` then ${spokenDur(row.usable)}`;
     return {
       tier: 'wait',
       text: `from ${clock(row.availableAt)}`,
-      say: `free at ${spokenClock(row.availableAt)} then ${spokenDur(row.usable ?? 0)}`,
+      say: `free at ${spokenClock(row.availableAt)}${then}`,
     };
   }
   if (!row.hoursKnown) {
