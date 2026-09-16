@@ -976,7 +976,15 @@ function rowFrom(c, { now, need, packup, dst, mode, lookahead }) {
     // cap 0 is the index's sentinel for UNKNOWN, not a room with no seats, and
     // 44 of 871 rooms carry it. `?? null` passes 0 straight through, so those
     // rooms would render a confident "0 seats".
-    seats: c.room.cap === 0 || c.room.cap == null ? null : c.room.cap,
+    //
+    // 998 is the index's other sentinel, for the ONLINE pseudo-room -- see
+    // scripts/build-index.mjs's schema line and ONLINE_CAPACITY in
+    // scripts/live-rot-checks.mjs. Zero of them ship, because the funnel drops
+    // ONLINE long before here, and live-rot-checks.mjs exists precisely because
+    // that filter is one upstream rename away from stopping. It is read as
+    // unknown for the same reason js/preferences.js already refuses to match a
+    // seat minimum against it, rather than rendering "998 seats".
+    seats: c.room.cap == null || c.room.cap === 0 || c.room.cap === 998 ? null : c.room.cap,
     // On the Registrar's general-assignment list, or a room a department holds
     // the key to. `tierOf` ranks on it and the row renders the one-word label
     // off it, so it has to survive the trip out of the index. `?? null` and not
