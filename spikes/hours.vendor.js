@@ -17,7 +17,9 @@
 export function pickHoursTerm(hours, current) {
   const want = (current?.termName ?? '').toLowerCase().replace(/\s+/g, '-');
   const terms = Object.entries(hours?.terms ?? {});
-  const exact = terms.find(([slug]) => slug.startsWith(want));
+  // Every slug startsWith(''), so a current.json with no termName would take
+  // the first term in the table rather than none. Same guard as js/app.js.
+  const exact = want ? terms.find(([slug]) => slug.startsWith(want)) : null;
   if (exact) return exact[1];
   return null;
 }

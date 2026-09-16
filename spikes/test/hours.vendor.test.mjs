@@ -15,7 +15,7 @@ test('js/app.js still resolves hours the way hours.vendor.js copied', () => {
   const app = read('../../js/app.js');
   for (const needle of [
     "const want = (current?.termName ?? '').toLowerCase().replace(/\\s+/g, '-');",
-    'const exact = terms.find(([slug]) => slug.startsWith(want));',
+    'const exact = want ? terms.find(([slug]) => slug.startsWith(want)) : null;',
     'const rec = state.hoursTerm?.buildings?.[code];',
     'return rec.hours[day];',
   ]) {

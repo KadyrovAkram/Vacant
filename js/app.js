@@ -850,7 +850,12 @@ function attachSheet() {
 function pickHoursTerm(hours, current) {
   const want = (current?.termName ?? '').toLowerCase().replace(/\s+/g, '-');
   const terms = Object.entries(hours?.terms ?? {});
-  const exact = terms.find(([slug]) => slug.startsWith(want));
+  // `want` has to be checked before the prefix match, because every slug
+  // startsWith(''). A current.json with no termName therefore took whichever
+  // term the table happened to list first -- Summer, on the committed file --
+  // and ranked an Autumn index against Summer doors, silently and with the
+  // warning below skipped. No termName is no match.
+  const exact = want ? terms.find(([slug]) => slug.startsWith(want)) : null;
   if (exact) return exact;
   // No table for the live term. Every building then reports unknown hours,
   // which is honest, rather than borrowing another term's doors.
