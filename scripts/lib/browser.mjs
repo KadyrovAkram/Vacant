@@ -195,14 +195,21 @@ export class Devtools {
 
 // ------------------------------------------------------------------- server
 
-export async function serve(root, preferredPort) {
+export async function serve(rootPath, preferredPort) {
+  const root = path.resolve(rootPath);
   const server = createServer((req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p.startsWith('/Vacant/')) p = p.slice(7);
     else if (p === '/Vacant') p = '/';
     if (p.endsWith('/')) p += 'index.html';
-    const file = path.join(root, p);
-    if (!file.startsWith(root)) {
+    const file = path.resolve(root, `.${p}`);
+    // path.relative, not startsWith. A string prefix test lets a SIBLING of the
+    // root through whenever its name begins with the root's: `%2f` survives the
+    // URL's own dot-segment removal, so GET /Vacant/..%2fVacant-notes/s.txt
+    // decoded to /../Vacant-notes/s.txt, joined to <parent>/Vacant-notes/s.txt,
+    // and "starts with <parent>/Vacant" is true of it.
+    const inside = path.relative(root, file);
+    if (inside.startsWith('..') || path.isAbsolute(inside)) {
       res.writeHead(403).end();
       return;
     }
