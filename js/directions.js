@@ -80,7 +80,15 @@ function loadMaps(key, doc = document) {
     const el = doc.createElement('script');
     el.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=${CALLBACK}`;
     el.async = true;
-    el.onerror = () => reject(new Error('maps script failed'));
+    el.onerror = () => {
+      // The failure is retried on the next tap, so this attempt has to leave
+      // nothing behind. Without the cleanup the global callback stayed bound to
+      // this promise's resolve and the dead <script> stayed in the head, one
+      // more of each per retry, on the offline path where retrying is normal.
+      delete globalThis[CALLBACK];
+      el.remove();
+      reject(new Error('maps script failed'));
+    };
     doc.head.appendChild(el);
   }).catch((err) => {
     // A failed load is retried on the next tap rather than remembered forever:
