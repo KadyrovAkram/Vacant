@@ -1058,6 +1058,11 @@ function shortName(name) {
   return s.length > 24 && cut > 0 ? s.slice(cut + 3) : s;
 }
 
+// The index's two capacity sentinels: 0 is unknown and 998 is the ONLINE
+// pseudo-room. Named here because the room screen reads room.cap straight out
+// of the index, where js/engine.js has already dropped both for a row.
+const seatsKnown = (cap) => Number.isFinite(cap) && cap > 0 && cap !== 998;
+
 function roomLabel(r) {
   const n = state.rooms?.rooms?.[r.id]?.n;
   const name = shortName(r.name);
@@ -2556,7 +2561,11 @@ function roomHtml(id) {
   // the metres, so it was one number rendered twice.
   const facts = [
     walk == null ? '' : `<span class="w">${WALK_ICON}${walk} min walk</span>`,
-    room.cap ? `<span>${room.cap} seats</span>` : '<span>seats unknown</span>',
+    // 998 is the ONLINE sentinel, not a seat count. rowFrom in js/engine.js and
+    // roomMatchesPreferences in js/preferences.js both read it as unknown, and
+    // this line reads the raw index rather than a row, so it has to say so
+    // itself or the room screen contradicts the row that sent the reader here.
+    seatsKnown(room.cap) ? `<span>${room.cap} seats</span>` : '<span>seats unknown</span>',
     type ? `<span>${esc(type)}</span>` : '',
     ...roomFeatureLabels(room).map((label) => `<span>${esc(label)}</span>`),
     // The same word the row carries, on the screen a student lands on after
