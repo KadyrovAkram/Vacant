@@ -184,6 +184,7 @@ export function buildEntrances(features, buildings) {
     noCoordinate: 0,
     notBuilt: 0,
     unknownBuilding: 0,
+    noBuildingCoordinate: 0,
     duplicatePoint: 0,
     tooFarFromBuilding: 0,
     kept: 0,
@@ -221,6 +222,17 @@ export function buildEntrances(features, buildings) {
     }
 
     const building = buildings[code];
+    // The building's OWN coordinate, checked before it is measured against.
+    // Without this the door was measured from a building with no lat/lon:
+    // absent, it is NaN metres, and `NaN > MAX_DOOR_METRES` is false, so the
+    // door shipped with `metres: null` and no sanity check ever ran on it;
+    // null, it is a distance from 0,0 and the door was reported as 11,000 km
+    // too far from its own building. sweep() in js/engine.js drops a room on a
+    // building like this for the same reason.
+    if (!Number.isFinite(building.lat) || !Number.isFinite(building.lon)) {
+      funnel.noBuildingCoordinate++;
+      continue;
+    }
 
     // Six decimal places is about 10 cm, finer than any door is wide, so two
     // points agreeing to six places are the same door recorded twice.
@@ -322,6 +334,8 @@ async function main() {
   console.log(`  - ${funnel.noCoordinate} with no coordinate`);
   console.log(`  - ${funnel.notBuilt} not built yet`);
   console.log(`  - ${funnel.unknownBuilding} on a building outside the index`);
+  console.log(`  - ${funnel.noBuildingCoordinate} on a building with no coordinate of its own`);
+  console.log(`  - ${funnel.tooFarFromBuilding} further than ${MAX_DOOR_METRES} m from their building`);
   console.log(`  - ${funnel.duplicatePoint} the same door twice`);
   console.log(`  = ${funnel.kept} doors on ${Object.keys(entrances).length} buildings`);
 
