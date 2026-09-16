@@ -2920,6 +2920,8 @@ function showPane(name) {
   // no rounded top, no border and no grip there. index.html hangs those off the
   // body rather than the pane, because the sheet is what has to lose them.
   document.body.classList.toggle('carding', name === 'card');
+  // The picker hides the origin pill, whose one button opens the picker.
+  document.body.classList.toggle('picking', name === 'pick');
   document.body.classList.remove('waying');
   for (const id of PANES) $(id).hidden = id !== name;
   $('find').hidden = name !== 'pick';
@@ -2958,7 +2960,7 @@ function showAsk() {
   $('way').hidden = true;
   $('ask').hidden = false;
   document.body.classList.add('asking');
-  document.body.classList.remove('carding', 'waying');
+  document.body.classList.remove('carding', 'waying', 'picking');
   // `body.asking #note` hides the pill, so the clearance goes back to zero.
   // This screen has no plate to push, but the next one is painted from whatever
   // is left here.
@@ -3205,7 +3207,7 @@ function showWay(id) {
   $('menu').hidden = false;
   $('way').hidden = false;
   closeMenu();
-  document.body.classList.remove('asking', 'carding');
+  document.body.classList.remove('asking', 'carding', 'picking');
   // The menu is this screen's only chrome, and it is the same button it was on
   // the card a tap ago, so it is drawn the same: no disc, 40px in a 60px target.
   document.body.classList.add('waying');

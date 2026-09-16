@@ -947,6 +947,11 @@
      #ask-where, so the floating pill is redundant there as well as in the way.
      The load error used to be the exception; it has the gate card now. */
   body.asking #note { display: none !important; }
+  /* And the picker, for a sharper version of the same argument: the pill's only
+     control is Pick a building, and this screen IS that. It also collided --
+     the picker sheet covers the map and rests 76px down at 375x812, so the pill
+     painted through the top 28px of "Where are you?". */
+  body.picking #note { display: none !important; }
 
   /* --- what a mouse gets back --- */
   /* There was nothing here at all. `grep -c ":hover" index.html` returned 0, so
