@@ -968,10 +968,14 @@ function answer() {
   // It runs AFTER the stranded fallback above, which re-enters answer() from
   // the Oval; running it earlier would sweep twice and throw the first away.
   //
-  // The calendar goes in because query() reads classesSuspended off it rather
-  // than off the sweep options. Without it the ladder would read a no-classes
-  // day as a full one and relax against a busy grid describing nobody, while
-  // the list beside it showed all of campus free.
+  // No calendar goes in, and that is the same decision as `classesSuspended:
+  // false` in `ask` above. scheduleFor() has ALREADY emptied the class tuples
+  // on a no-classes day, and what it left behind is the week's registered
+  // events. query() would turn a calendar into sweep's classesSuspended, which
+  // replaces the gap list with the whole open window and so ignores those
+  // events -- the ladder would call a room with a registered event in it free
+  // all day while the rows beside it, from rank(), knew better. Both sweeps
+  // read the one overlaid grid.
   // Nothing is selected until a finger picks one. Asserting row one here is
   // what made the highlight fire on load and never move again.
   state.selected = null;
@@ -1006,10 +1010,7 @@ function answer() {
   // is repainted on the line after, off the same state paintList() just used.
   paintList();
   paintCard();
-  const answered = ladder(rooms, {
-    ...ask,
-    calendar: state.situation?.classesSuspended ? { noClasses: true } : undefined,
-  });
+  const answered = ladder(rooms, ask);
   state.rung = answered.rung;
   state.relaxed = answered.relaxed;
   if (answered.relaxed) paintList();
