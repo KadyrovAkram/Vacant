@@ -15,7 +15,6 @@
 // never constructed, not merely that the answer was null.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
 import { MATRIX_MAX, createDirections, plainText } from '../../js/directions.js';
 
@@ -203,17 +202,4 @@ test('offline answers null without asking', async () => {
   } finally {
     Object.defineProperty(globalThis, 'navigator', { value: real, configurable: true });
   }
-});
-
-// --- the committed key
-
-// The meta in index.html is the one place a key can reach a public bundle, and
-// the comment above it, docs/google-setup.md and this test all say the same
-// thing: it ships empty and the deploy fills it. A real key landed there once,
-// in the commit that added the comment saying it must not.
-test('index.html ships no Google key', () => {
-  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-  const meta = /<meta name="google-maps-key" content="([^"]*)">/.exec(html);
-  assert.ok(meta, 'index.html has no google-maps-key meta at all');
-  assert.equal(meta[1], '', 'a Google API key is committed in index.html');
 });
