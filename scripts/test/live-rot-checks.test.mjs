@@ -5,7 +5,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  CLOCK,
   ONLINE_CAPACITY,
   REQUIRED_FIELDS,
   buildingJoin,
@@ -135,15 +134,20 @@ test('deleting a weekday flag fails only the field shape check, and names the da
 });
 
 test('a clock format toMinutes cannot parse is caught, and the value is printed', () => {
-  for (const bad of ['09:05', '9:05 AM', '9.05 am', '905am', null]) {
+  for (const bad of ['9.05 am', '905am', '25:00 am', '9:60 am', null]) {
     const broken = { ...clone(REAL), startTime: bad };
     const r = fieldShape(page([broken, ONLINE]));
     assert.equal(r.ok, false, `${JSON.stringify(bad)} should not parse`);
     assert.match(r.detail, /startTime is/);
     assert.match(r.detail, /toMinutes cannot parse/);
   }
-  assert.equal(CLOCK.test('9:05 am'), true);
-  assert.equal(CLOCK.test('11:00 pm'), true);
+  // And a form the parser DOES read is not a breakage. '09:05' and '9:05 AM'
+  // were on the list above, and toMinutes has always taken both, so the rot
+  // detector would have raised an ops issue over a change that breaks nothing.
+  for (const fine of ['9:05 am', '11:00 pm', '09:05 am', '9:05 AM']) {
+    const r = fieldShape(page([{ ...clone(REAL), startTime: fine }, ONLINE]));
+    assert.equal(r.ok, true, `${JSON.stringify(fine)} parses, so it is not rot`);
+  }
 });
 
 test('renaming ONLINE turns it into a phantom room, and that is what gets reported', () => {

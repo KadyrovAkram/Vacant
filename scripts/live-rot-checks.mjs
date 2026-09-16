@@ -14,7 +14,7 @@
 // because "assertion failed" in a weekly issue costs a round trip to find out
 // what moved.
 
-import { hasRealRoom } from './lib/funnel.mjs';
+import { hasRealRoom, toMinutes } from './lib/funnel.mjs';
 
 // The seven fields build-index.mjs reads off a meeting. A rename here empties
 // rooms silently rather than crashing.
@@ -32,8 +32,11 @@ export const REQUIRED_FIELDS = [
 // renamed flag would drop the whole term.
 export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
-// What toMinutes parses, and nothing else. "9:05 am", never "09:05" or "9:05 AM".
-export const CLOCK = /^\d{1,2}:\d{2} (am|pm)$/;
+// There is no second copy of the clock rule here. There was one, and it was
+// TIGHTER than the parser it claimed to describe: it rejected "9:05 AM", which
+// funnel.mjs's toMinutes reads without complaint, so an upstream change of case
+// would have filed an ops issue about a break that is not one. The check asks
+// toMinutes directly now, and only a string toMinutes returns null for fails.
 
 // The seat count Ohio State gives the ONLINE pseudo-room. Not a real capacity,
 // and the number is the tell if the name ever stops being one.
@@ -79,7 +82,7 @@ export function fieldShape(page) {
   }
 
   for (const field of ['startTime', 'endTime']) {
-    if (!CLOCK.test(sample[field] ?? '')) {
+    if (toMinutes(sample[field]) == null) {
       return { ok: false, detail: `${field} is ${JSON.stringify(sample[field])}, which toMinutes cannot parse` };
     }
   }
