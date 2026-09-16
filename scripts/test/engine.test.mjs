@@ -938,6 +938,12 @@ test('for fixed-duration requests, walk is primary and surplus is a tie-break; f
   // an hour ever counts.
   const distant = { walk: 10, usable: 600 };
   assert.ok(scoreOf(near, 0) < scoreOf(distant, 0), 'surplus past the cap does not drag you across campus');
+  // The rest-of-day branch is the only one SURPLUS_WEIGHT still prices, and it
+  // was left asserted by ordering alone when #116 split the two branches: the
+  // import went unused and nothing pinned the exchange rate any more. Half an
+  // hour of surplus buys three minutes of walking, and an hour is the ceiling.
+  assert.equal(scoreOf({ walk: 6, usable: 30 }, 0), 6 - SURPLUS_WEIGHT * 30);
+  assert.equal(scoreOf({ walk: 9, usable: 600 }, 0), 9 - SURPLUS_WEIGHT * SURPLUS_CAP);
 });
 
 test('an unknown-hours room scores on distance alone, because it has no window to trade', () => {
