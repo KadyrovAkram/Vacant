@@ -97,8 +97,9 @@ export function findTermLink(indexHtml, name) {
 
 async function fetchCached(url, slug, { validate, dryRun } = {}) {
   const cachePath = join(CACHE_DIR, `${slug}.html`);
+  let html;
   try {
-    const html = await fetchText(url);
+    html = await fetchText(url);
     if (!html || html.length < 1000) throw new Error(`suspiciously short response (${html?.length} bytes)`);
     // Validate before overwriting the cache. A removed term page redirects to
     // the index and comes back as a healthy 200, and writing that first would
@@ -107,8 +108,6 @@ async function fetchCached(url, slug, { validate, dryRun } = {}) {
       const problem = validate(html);
       if (problem) throw new Error(`response failed validation: ${problem}`);
     }
-    if (!dryRun) await writeAtomic(cachePath, html);
-    return { html, from: 'live' };
   } catch (err) {
     if (existsSync(cachePath)) {
       console.warn(`  warn  ${slug}: fetch failed (${err.message}), using the committed cache`);
@@ -116,6 +115,13 @@ async function fetchCached(url, slug, { validate, dryRun } = {}) {
     }
     throw err;
   }
+  // Outside the try, the way scripts/fetch-calendar.mjs's save() already does
+  // it. A dry run still writes nothing. A write that fails -- no space, no permission, a read-only checkout --
+  // is not a failed fetch, and inside the try it was caught as one: the run
+  // discarded a good live page, silently fell back to the committed copy, and
+  // printed "fetch failed" over a fetch that had worked.
+  if (!dryRun) await writeAtomic(cachePath, html);
+  return { html, from: 'live' };
 }
 
 async function main() {
