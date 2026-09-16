@@ -3739,7 +3739,13 @@ async function boot() {
 
   state.situation = resolveState({ now, current, index: state.rooms });
   state.rankable = state.situation.ranked;
-  state.scheduled = roomSearchOn({ now, current, index: rooms, ranked: state.rankable });
+  // state.rooms, the overlaid index, and not the raw class index. refresh()
+  // asks the same question of the overlaid one, and the two are not the same
+  // index: the overlay adds the week's registered events and a one-date
+  // session, which moves both the share scheduleDarkOn reads and the quantiles
+  // busyDayOf measures. Boot and the first repaint could answer differently
+  // about the same minute.
+  state.scheduled = roomSearchOn({ now, current, index: state.rooms, ranked: state.rankable });
 
   state.ready = true;
   for (const el of document.querySelectorAll('#ask [data-min][disabled]')) el.disabled = false;
