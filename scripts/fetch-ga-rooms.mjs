@@ -75,9 +75,21 @@ export function findTermLink(indexHtml, name) {
   const links = new Map();
   for (const m of indexHtml.matchAll(/href="([^"]*general-assignment-rooms[^"]*)"/gi)) {
     const href = m[1];
-    const slug = href.replace(/\/+$/, '').split('/').pop();
+    // On the Registrar, or not followed at all. These hrefs come off a page
+    // this script does not control, and the url it picks here is fetched and
+    // written into data/cache as a Registrar page. Its sibling in
+    // scripts/fetch-calendar.mjs tests the origin; this one took any absolute
+    // URL the index carried.
+    let url;
+    try {
+      url = new URL(href, `${ORIGIN}/`);
+    } catch {
+      continue;
+    }
+    if (url.origin !== ORIGIN) continue;
+    const slug = url.pathname.replace(/\/+$/, '').split('/').pop();
     if (!slug || slug === 'general-assignment-rooms') continue;
-    links.set(slug, href.startsWith('http') ? href : `${ORIGIN}${href}`);
+    links.set(slug, url.href);
   }
   const hit = [...links.keys()].find((slug) => slug.includes(want));
   return { slug: hit ?? null, url: hit ? links.get(hit) : null, all: [...links.keys()] };
