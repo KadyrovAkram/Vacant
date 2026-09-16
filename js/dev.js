@@ -20,6 +20,7 @@
 // day, at a minute. See SCENES.
 
 import { devApply, devReadout, devState } from './app.js';
+import { NETWORK_TIMEOUT_MS } from './firstrun.js';
 
 const KEY = 'vacant.dev';
 const KEY_AT = 'vacant.dev.at';
@@ -344,8 +345,21 @@ export function start(scene) {
 
   // Wait for the index. The controls are inert until then, and the readout says
   // so rather than rendering an empty answer.
+  //
+  // Bounded, because the wait can be forever. boot() rejects on a dead network
+  // and js/app.js paints its own card without ever setting state.ready, and
+  // this had no way out of that: it polled eight times a second for as long as
+  // the tab stayed open, on the one screen that is already telling the reader
+  // the network is gone. NETWORK_TIMEOUT_MS is boot's own ceiling, so anything
+  // past it is not slow, it has failed.
+  const giveUp = Date.now() + NETWORK_TIMEOUT_MS + 5000;
   const ready = setInterval(() => {
-    if (!devReadout().ready) return;
+    if (!devReadout().ready) {
+      if (Date.now() < giveUp) return;
+      clearInterval(ready);
+      out.textContent = 'the app never loaded its index, so there is nothing to simulate against';
+      return;
+    }
     clearInterval(ready);
     live = devState.origin ? { ...devState.origin } : null;
 
