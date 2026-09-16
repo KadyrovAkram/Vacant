@@ -871,12 +871,28 @@ function hoursFor(code, day) {
 
 const nowMinutes = (d) => d.getHours() * 60 + d.getMinutes();
 
+// The index every question about the SHAPE of the class schedule has to be
+// asked, which is the harvested one and never the overlaid one.
+//
+// scheduleFor() empties the class tuples on a Registrar no-classes day, and
+// state.rooms is what it returns. Handing that to busyDayOf or roomSearchOn
+// asks how much of the class schedule is running on a grid something else has
+// just emptied, and the answer is always none: on Autumn Break at 11am the app
+// hid the duration buttons and offered a list of buildings instead of ranking,
+// while resolveState right beside it said RANKED and js/state.js's own note
+// says a no-classes day still ranks with the quiet-campus line saying why. It
+// is the best day of the term for this app and it was the one it refused.
+//
+// It also reached neededMinutes: with no blocks left, busyDayOf returns null
+// and "rest of day" asked for the 30 minute floor.
+const classIndex = () => state.classRooms;
+
 // "rest of day" is not a constant. It is the minutes between now and the last
 // minute the class schedule covers, read off the index, so a term whose
 // evenings end at 20:15 does not get asked for a window running to 22:30.
 function neededMinutes(now) {
   if (state.duration !== 'day') return Number(state.duration) || 30;
-  const busyDay = busyDayOf(state.current, state.rooms);
+  const busyDay = busyDayOf(state.current, classIndex());
   const left = busyDay ? busyDay.latestEnd - nowMinutes(now) : 0;
   return Math.max(30, left);
 }
@@ -3329,7 +3345,7 @@ function refresh() {
   state.eventCoverage = overlaid.coverage;
   state.situation = resolveState({ now, current: state.current, index: state.rooms });
   state.rankable = state.situation.ranked;
-  state.scheduled = roomSearchOn({ now, current: state.current, index: state.rooms, ranked: state.rankable });
+  state.scheduled = roomSearchOn({ now, current: state.current, index: classIndex(), ranked: state.rankable });
   paintGate();
   if (!state.rankable) {
     if (state.screen !== 'near' && state.screen !== 'about') showAsk();
@@ -3387,8 +3403,8 @@ function paintGate() {
       const said = unscheduledGate({
         now,
         current: state.current,
-        index: state.rooms,
-        busyDay: busyDayOf(state.current, state.rooms),
+        index: classIndex(),
+        busyDay: busyDayOf(state.current, classIndex()),
         opening: firstDoor(now),
         openNow: openDoorCount({
           counts: state.counts,
@@ -3753,13 +3769,12 @@ async function boot() {
 
   state.situation = resolveState({ now, current, index: state.rooms });
   state.rankable = state.situation.ranked;
-  // state.rooms, the overlaid index, and not the raw class index. refresh()
-  // asks the same question of the overlaid one, and the two are not the same
-  // index: the overlay adds the week's registered events and a one-date
-  // session, which moves both the share scheduleDarkOn reads and the quantiles
-  // busyDayOf measures. Boot and the first repaint could answer differently
-  // about the same minute.
-  state.scheduled = roomSearchOn({ now, current, index: state.rooms, ranked: state.rankable });
+  // The same index refresh() asks, for the same reason classIndex() exists: the
+  // overlay adds the week's events and a one-date session and, on a no-classes
+  // day, removes every class tuple, all of which move the share scheduleDarkOn
+  // reads and the quantiles busyDayOf measures. Boot and the first repaint must
+  // not answer differently about the same minute.
+  state.scheduled = roomSearchOn({ now, current, index: classIndex(), ranked: state.rankable });
 
   state.ready = true;
   for (const el of document.querySelectorAll('#ask [data-min][disabled]')) el.disabled = false;
