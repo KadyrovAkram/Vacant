@@ -36,11 +36,16 @@ export function plainText(html) {
     .replace(/<div[^>]*>/gi, ' • ')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
+    // LAST, and that order is the whole point. `&amp;` decoded first turns
+    // `&amp;lt;` -- which is how a literal "&lt;" arrives -- into `&lt;`, and
+    // the next line then turns that into a real `<`. A step name carrying
+    // `&amp;lt;script&amp;gt;` came out of here as `<script>`, which is the
+    // one thing the tag strip above exists to prevent.
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }
