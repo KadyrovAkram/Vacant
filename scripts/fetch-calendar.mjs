@@ -64,10 +64,20 @@ export function finalsLinks(indexHtml) {
   const links = new Map();
   for (const m of String(indexHtml ?? '').matchAll(/href="([^"]*finals-schedule[^"]*)"/gi)) {
     const href = m[1];
-    if (/^https?:/i.test(href) && !href.startsWith(ORIGIN)) continue;
-    const slug = href.replace(/\/+$/, '').split('/').pop();
+    // Resolved and compared as an ORIGIN, not as a string prefix.
+    // `href.startsWith(ORIGIN)` is true of https://registrar.osu.edu.example.com
+    // as well as of the Registrar, so a lookalike host was fetched, validated
+    // on "has a <table>" and cached into data/cache as a Registrar page.
+    let url;
+    try {
+      url = new URL(href, `${ORIGIN}/`);
+    } catch {
+      continue; // not a URL at all
+    }
+    if (url.origin !== ORIGIN) continue;
+    const slug = url.pathname.replace(/\/+$/, '').split('/').pop();
     if (!slug || slug === 'final-exams-schedule') continue;
-    links.set(slug, href.startsWith('http') ? href : `${ORIGIN}${href}`);
+    links.set(slug, url.href);
   }
   const dated = [...links.keys()].filter((slug) =>
     /^(autumn|spring|summer)-\d{4}-finals-schedule$/.test(slug),

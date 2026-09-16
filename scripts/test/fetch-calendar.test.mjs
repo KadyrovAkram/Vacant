@@ -31,8 +31,13 @@ test('the finals index gives up every dated page, and only those', () => {
 test('an offsite link that mentions finals is not followed', () => {
   const html =
     '<a href="https://example.com/finals-schedule/">no</a>' +
+    // A host the Registrar's own name is a PREFIX of. The old string test let
+    // this one through and cached whatever it served.
+    '<a href="https://registrar.osu.edu.example.com/spring-2030-finals-schedule/">no</a>' +
+    '<a href="//example.com/summer-2030-finals-schedule/">no</a>' +
     '<a href="/x/autumn-2030-finals-schedule/">yes</a>';
   assert.deepEqual(finalsLinks(html).dated, ['autumn-2030-finals-schedule']);
+  assert.equal(finalsLinks(html).url('autumn-2030-finals-schedule'), `${'https://registrar.osu.edu'}/x/autumn-2030-finals-schedule/`);
   assert.deepEqual(finalsLinks(null).all, []);
 });
 
