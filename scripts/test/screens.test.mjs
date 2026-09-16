@@ -360,11 +360,28 @@ test('the closed table reads in either shape the build might write it', () => {
     assert.equal(closedDayFor('2026-09-08', null, shape), null);
     assert.equal(resolveState({ now: at('2026-09-07'), current: CUR, index: { ...CAL, ...shape } }).kind, 'CAMPUS_CLOSED');
   }
-  // And the bare-string form the issue also allows.
+  // A {date, state} row with no name, which is what the sentence below used to
+  // call the bare-string form while passing an object.
   assert.deepEqual(closedDayFor('2026-10-15', null, { closed: [{ date: '2026-10-15', state: 'no-classes' }] }), {
     state: 'no-classes',
     name: null,
   });
+
+  // And the bare-string forms calendarOn() in js/engine.js reads, both of them.
+  // In the LIST a bare string is the DATE and says nothing about the state; in
+  // the MAP it is the STATE. Reading the first one as a state, or not at all,
+  // is how this screen and the engine's refusal come apart.
+  const bareList = { closed: ['2026-09-07'] };
+  assert.deepEqual(closedDayFor('2026-09-07', null, bareList), { state: null, name: null });
+  assert.equal(closedDayFor('2026-09-08', null, bareList), null);
+  assert.equal(
+    resolveState({ now: at('2026-09-07'), current: CUR, index: { ...CAL, ...bareList } }).kind,
+    'CAMPUS_CLOSED',
+  );
+  assert.deepEqual(
+    closedDayFor('2026-10-15', null, { closed: { '2026-10-15': 'no-classes' } }),
+    { state: 'no-classes', name: null },
+  );
 });
 
 test('no shipped building has unknown hours, and the grouping still holds', () => {
