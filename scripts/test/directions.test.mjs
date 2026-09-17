@@ -67,8 +67,10 @@ test('instructions come back as text, not markup', () => {
   assert.equal(plainText('Neil &amp; 11th'), 'Neil & 11th');
   assert.equal(plainText('a  <b>b</b>   c'), 'a b c');
   assert.equal(plainText(undefined), '');
-  // A tag that a template would have had to escape never reaches the template.
+  // A tag that a template would have had to escape never reaches the template,
+  // including one that arrives double-escaped.
   assert.ok(!plainText('<script>x</script>y').includes('<'));
+  assert.equal(plainText('&amp;lt;b&amp;gt;'), '&lt;b&gt;');
 });
 
 // --- no key is not a broken app

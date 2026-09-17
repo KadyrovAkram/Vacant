@@ -360,11 +360,28 @@ test('the closed table reads in either shape the build might write it', () => {
     assert.equal(closedDayFor('2026-09-08', null, shape), null);
     assert.equal(resolveState({ now: at('2026-09-07'), current: CUR, index: { ...CAL, ...shape } }).kind, 'CAMPUS_CLOSED');
   }
-  // And the bare-string form the issue also allows.
+  // A {date, state} row with no name, which is what the sentence below used to
+  // call the bare-string form while passing an object.
   assert.deepEqual(closedDayFor('2026-10-15', null, { closed: [{ date: '2026-10-15', state: 'no-classes' }] }), {
     state: 'no-classes',
     name: null,
   });
+
+  // And the bare-string forms calendarOn() in js/engine.js reads, both of them.
+  // In the LIST a bare string is the DATE and says nothing about the state; in
+  // the MAP it is the STATE. Reading the first one as a state, or not at all,
+  // is how this screen and the engine's refusal come apart.
+  const bareList = { closed: ['2026-09-07'] };
+  assert.deepEqual(closedDayFor('2026-09-07', null, bareList), { state: null, name: null });
+  assert.equal(closedDayFor('2026-09-08', null, bareList), null);
+  assert.equal(
+    resolveState({ now: at('2026-09-07'), current: CUR, index: { ...CAL, ...bareList } }).kind,
+    'CAMPUS_CLOSED',
+  );
+  assert.deepEqual(
+    closedDayFor('2026-10-15', null, { closed: { '2026-10-15': 'no-classes' } }),
+    { state: 'no-classes', name: null },
+  );
 });
 
 test('no shipped building has unknown hours, and the grouping still holds', () => {
@@ -1301,10 +1318,20 @@ test('the ranked list says which question it is answering', () => {
   assert.match(line, /<p class="asked">/);
   assert.doesNotMatch(line, /<button|onclick|role=/, 'the line naming the ask is a control again');
 
-  // One vocabulary for one figure. The strip two lines below prints
-  // dur(state.needed) and the empty screen prints it too; a second rendering of
-  // the same ask on the same screen is how two lines disagree.
-  assert.match(line, /dur\(state\.needed\)/);
+  // One vocabulary for one figure, and one function for it. The strip two lines
+  // below names the ask and so does the empty screen; a second rendering of the
+  // same ask on the same screen is how two lines disagree. They all read
+  // askedFor(), which is the only place that knows "rest of day" is not a
+  // length dur() can print.
+  assert.match(line, /askedFor\(\)/);
+  assert.match(APP, /const askedFor = \(\) => \(state\.duration === 'day' \? 'the rest of the day' : dur\(state\.needed\)\);/);
+  for (const fn of ['paintList', 'emptyAnswer', 'paintCard']) {
+    assert.doesNotMatch(
+      bodyOf(fn),
+      /dur\(state\.needed\)/,
+      `${fn} renders the ask without going through askedFor()`,
+    );
+  }
 
   // It names the ASK, not an offer. state.results can hold rows shorter than
   // the ask whenever one row meets it, so "free for 2h00" over these rows is a

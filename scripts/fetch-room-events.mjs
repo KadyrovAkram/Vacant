@@ -82,6 +82,18 @@ function die(message) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// MM/DD/YYYY to the UTC midnight of that day. defaultWeek() below already
+// picks the Monday in UTC "independent of a laptop's timezone", and this is the
+// other half of that: `new Date('2026-09-14T12:00:00')` is parsed as LOCAL noon,
+// and toISOString() then reports the day before it anywhere past UTC+12 --
+// Chatham, Apia, Kiritimati. The overlay would have been stamped Sun to Sat
+// while check-event-coverage.mjs, which builds the same pair with Date.UTC,
+// expected Mon to Sun, and the weekly publish would refuse.
+export function mondayOf(week) {
+  const [month, day, year] = [week.slice(0, 2), week.slice(3, 5), week.slice(6)].map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 const localDate = () => {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -473,7 +485,7 @@ function freeGaps(busy, w1, w2) {
 }
 
 export function analyse(index, rooms, week) {
-  const monday = new Date(`${week.slice(6)}-${week.slice(0, 2)}-${week.slice(3, 5)}T12:00:00`);
+  const monday = mondayOf(week);
   const iso = (d) => d.toISOString().slice(0, 10);
   const weekStart = iso(monday);
   const weekEnd = iso(new Date(monday.getTime() + 6 * 86400000));
@@ -587,9 +599,9 @@ async function main() {
   if (fromCache && !arg('week')) die('--from-cache requires an explicit --week.');
   const week = arg('week', defaultWeek());
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(week)) die(`--week wants MM/DD/YYYY, got "${week}"`);
-  const monday = new Date(`${week.slice(6)}-${week.slice(0, 2)}-${week.slice(3, 5)}T12:00:00`);
+  const monday = mondayOf(week);
   if (Number.isNaN(monday.getTime())) die(`--week ${week} is not a date`);
-  if (monday.getDay() !== 1) die(`--week ${week} is not a Monday. The matrix renders Mon-Sun.`);
+  if (monday.getUTCDay() !== 1) die(`--week ${week} is not a Monday. The matrix renders Mon-Sun.`);
 
   const indexPath = arg('index', join(ROOT, 'data', 'rooms-1268.json'));
   if (!existsSync(indexPath)) die(`no room index at ${indexPath}`);

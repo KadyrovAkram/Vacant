@@ -680,7 +680,16 @@ async function main() {
   // filter, so it refuses instead.
   const hoursFile = JSON.parse(readFileSync(hoursPath, 'utf8'));
   const wantSlug = (termName(term) ?? '').toLowerCase().replace(/\s+/g, '-');
-  const hoursSlug = Object.keys(hoursFile.terms ?? {}).find((slug) => slug.startsWith(wantSlug));
+  // The empty-slug guard js/app.js carries, because this is the same rule. A
+  // term whose season digit termName cannot read gives '', every slug
+  // startsWith(''), and the first table in the file -- whichever term that is
+  // -- would be applied as this term's doors: the noHours filter below drops
+  // rooms on another term's published-closed days, and the warning that exists
+  // for a missing table never prints. The run dies on the same unnameable term
+  // further down; it should not have filtered anything first.
+  const hoursSlug = wantSlug
+    ? Object.keys(hoursFile.terms ?? {}).find((slug) => slug.startsWith(wantSlug))
+    : undefined;
   // No table for this term is a MISSING INPUT, not a campus with no doors. The
   // Registrar publishes the current terms and takes old ones down, so the two
   // archived terms in data/raw/ have none and never will. Applying the rule

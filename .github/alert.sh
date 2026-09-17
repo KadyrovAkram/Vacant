@@ -100,11 +100,36 @@ if [ "$created" -eq 1 ]; then
   exit 0
 fi
 
+# An ISO 8601 stamp to seconds since the epoch, on either date(1). GNU takes
+# -d and BSD has no such flag at all, so on macOS the old single call printed a
+# usage error, left the arithmetic with an empty operand, and the quiet window
+# fell through to commenting every run with nothing on stderr but that error.
+# Prints nothing and returns non-zero when neither form reads the stamp.
+epoch() {
+  local out stamp
+  if out=$(date -u -d "$1" +%s 2>/dev/null); then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  # BSD's -f wants the layout spelled out and will not skip anything it was not
+  # told about, so the zone marker and any fractional seconds come off first.
+  stamp="${1%Z}"
+  stamp="${stamp%%.*}"
+  date -u -j -f '%Y-%m-%dT%H:%M:%S' "$stamp" +%s 2>/dev/null
+}
+
 if [ "$quiet_hours" -gt 0 ]; then
   last=$(gh issue view "$keep" --repo "$repo" --json createdAt,comments \
     --jq '[.createdAt] + [.comments[].createdAt] | max')
-  age_h=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 3600 ))
-  if [ "$age_h" -lt "$quiet_hours" ]; then
+  # A stamp neither date(1) can read is not a licence to go quiet: the window
+  # only ever suppresses an alert, so an unreadable one falls through and
+  # comments, which is what the script does with no window at all.
+  if ! last_s=$(epoch "$last"); then
+    echo "Could not read the last-touched time ${last} on either date(1), so the ${quiet_hours}h quiet window is not being applied." >&2
+    last_s=0
+  fi
+  age_h=$(( ( $(date -u +%s) - last_s ) / 3600 ))
+  if [ "$last_s" -gt 0 ] && [ "$age_h" -lt "$quiet_hours" ]; then
     echo "Issue #${keep} was last touched ${age_h}h ago, inside the ${quiet_hours}h quiet window."
     echo "Still broken, still open, not commenting again yet."
     exit 0

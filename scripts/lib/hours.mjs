@@ -22,14 +22,18 @@ const strip = (html) => html.replace(/<[^>]+>/g, '');
 const squash = (s) => s.replace(/\s+/g, ' ').trim();
 
 // Entities the page actually uses.
+// &amp; LAST. Decoded first it rebuilds the entities below it out of their own
+// escaped forms -- `&amp;lt;` becomes `&lt;` becomes `<` -- and strip() has
+// already run by the time this is called, so that `<` arrives as markup nothing
+// downstream removes.
 const decode = (s) =>
   s
-    .replace(/&amp;/g, '&')
     .replace(/&nbsp;/g, ' ')
     .replace(/&#8217;|&rsquo;/g, "'")
     .replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 
 // "7am" -> 420, "5:30pm" -> 1050, "12:30pm" -> 750.
 //

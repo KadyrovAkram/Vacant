@@ -314,6 +314,14 @@ test('the term page is discovered from the index, never built as a slug', () => 
   assert.match(hit.url, /^https:\/\/registrar\.osu\.edu\//);
   // A term the Registrar has not published yet fails loudly with the list it
   // did publish, rather than fetching a constructed URL and getting a 404 page.
+  // Offsite, and a host the Registrar's own name is a prefix of. Neither is
+  // followed: whatever this picks is fetched and cached as a Registrar page.
+  const offsite = `
+    <a href="https://example.com/general-assignment-rooms/autumn-2029-general-assignment-rooms/">no</a>
+    <a href="https://registrar.osu.edu.example.com/general-assignment-rooms/autumn-2028-general-assignment-rooms/">no</a>`;
+  assert.deepEqual(findTermLink(offsite, 'Autumn 2029').all, []);
+  assert.equal(findTermLink(offsite, 'Autumn 2028').url, null);
+
   const miss = findTermLink(index, 'Summer 2029');
   assert.equal(miss.url, null);
   assert.deepEqual(miss.all, [

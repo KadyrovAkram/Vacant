@@ -100,13 +100,16 @@ export function parseIcs(text) {
 
 // ------------------------------------------------- Registrar HTML tables
 
+// &amp; comes after the numeric entities, not before them: expanded first it
+// turns `&amp;#8211;` into `&#8211;` and the next line turns that into a dash,
+// so an escaped entity in a holiday name reads as the character it names.
 const stripTags = (html) =>
   html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&#8217;|&rsquo;/g, "'")
     .replace(/&#8211;|&ndash;/g, '-')
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 

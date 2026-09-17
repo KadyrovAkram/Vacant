@@ -8,7 +8,14 @@
 // installed icon to last month's app.js forever.
 //
 // Measured on 2026-09-16 over the committed blobs, which is the copy Pages serves:
-// `git show HEAD:<file> | gzip -9 -c | wc -c`. Shell 167,460 bytes, data 115,160.
+// `git show HEAD:<file> | gzip -9 -c | wc -c`. Shell 170,601 bytes, data 115,028.
+//
+// The shell read 167,460 before a run of small fixes across js/ and index.html.
+// It is 3,141 bytes, nearly all of it comment recording what each one was; no
+// file was added to the list below and nothing new is fetched. The figure is
+// restated here because it is the kind that goes stale silently: sw.test.mjs
+// holds it to within a percent of the files, and the run that pushed it there
+// is the one that has to move it.
 // Run it exactly as written, through the pipe. `gzip -9 -c <file>` with the
 // name as an argument stores each basename in the gzip FNAME header and reads
 // 176 bytes higher across these seventeen files, which is most of a percent of

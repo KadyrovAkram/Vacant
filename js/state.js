@@ -137,9 +137,21 @@ function windowOf(raw) {
 export function closedDayFor(today, current, index) {
   const closed = calendar('closed', current, index);
   if (!closed) return null;
-  const hit = Array.isArray(closed) ? closed.find((c) => c?.date === today) : closed[today];
+  const asList = Array.isArray(closed);
+  // A bare string in the LIST is a date, and calendarOn() in js/engine.js reads
+  // one. This did not, so on that shape it answered null while the engine
+  // refused: the screen lost the holiday's name, and scheduleCoversDate and
+  // unscheduledGate, which both ask this whether the day is offices-closed,
+  // read an ordinary day out of one the engine had already shut.
+  const hit = asList
+    ? closed.find((c) => (typeof c === 'string' ? c : c?.date) === today)
+    : closed[today];
   if (!hit) return null;
-  return typeof hit === 'string' ? { state: hit, name: null } : { state: hit.state, name: hit.name ?? null };
+  // And a bare string in the MAP is a state, which is the other half of the
+  // same rule. Naming neither leaves the state unknown rather than guessed, and
+  // refusedState takes the cautious branch on it exactly as the engine does.
+  if (typeof hit === 'string') return { state: asList ? null : hit, name: null };
+  return { state: hit.state ?? null, name: hit.name ?? null };
 }
 
 export function lowConfidenceFor(today, current, index) {
@@ -932,10 +944,16 @@ export function windowPhrase(row, close) {
     };
   }
   if (row.wait > 0) {
+    // `usable` is null for a building nobody publishes hours for, and this
+    // branch sits ABOVE the hoursKnown one, so `?? 0` put "then 0 minutes" in
+    // a reader's ear for a room that simply has no published close. The
+    // paragraph above this function is the rule it broke: no branch here
+    // prints a duration for a window we cannot promise.
+    const then = row.usable == null ? '' : ` then ${spokenDur(row.usable)}`;
     return {
       tier: 'wait',
       text: `from ${clock(row.availableAt)}`,
-      say: `free at ${spokenClock(row.availableAt)} then ${spokenDur(row.usable ?? 0)}`,
+      say: `free at ${spokenClock(row.availableAt)}${then}`,
     };
   }
   if (!row.hoursKnown) {

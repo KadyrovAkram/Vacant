@@ -439,8 +439,14 @@
      once, because it made scripts/shoot.mjs refuse the frame as still moving;
      that check compares within a tolerance now, for the raster noise a
      photograph brings, and this sits well inside it. */
+  /* --note-h is the floating origin pill's measured height, 0 when it is not
+     showing. Without it the plate sat at a fixed 5.6rem and the pill, which is
+     fixed at the top of the viewport and wraps to three rows at 375px when it
+     carries the Pick a building button, painted straight through the room name:
+     "Mendenhall Laboratory 174" read as "Men        tory 174" on the card and
+     again on the way, for every reader whose location is off or off campus. */
   .c-plate {
-    position: absolute; z-index: 2; top: calc(var(--safe-t) + 5.6rem);
+    position: absolute; z-index: 2; top: calc(var(--safe-t) + 5.6rem + var(--note-h, 0px));
     left: 50%; transform: translateX(-50%);
     width: calc(100% - 1.8rem); max-width: 20rem;
     background: rgba(18, 24, 33, .55);
@@ -941,6 +947,11 @@
      #ask-where, so the floating pill is redundant there as well as in the way.
      The load error used to be the exception; it has the gate card now. */
   body.asking #note { display: none !important; }
+  /* And the picker, for a sharper version of the same argument: the pill's only
+     control is Pick a building, and this screen IS that. It also collided --
+     the picker sheet covers the map and rests 76px down at 375x812, so the pill
+     painted through the top 28px of "Where are you?". */
+  body.picking #note { display: none !important; }
 
   /* --- what a mouse gets back --- */
   /* There was nothing here at all. `grep -c ":hover" index.html` returned 0, so

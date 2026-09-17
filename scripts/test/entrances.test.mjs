@@ -392,3 +392,23 @@ test('the offsets in the slice are whole metres and small', () => {
   const [dx, dy] = small['279'].d;
   assert.ok(Math.hypot(dx, dy) < 30);
 });
+
+test('a door is not measured against a building that has no coordinate', () => {
+  // NaN metres passes `metres > MAX_DOOR_METRES`, so the door shipped with
+  // `metres: null` and the 200 m sanity check never ran on it. A null lat is
+  // worse in the other direction: it reads as 0,0 and the door is filed as
+  // eleven thousand kilometres from its own building.
+  const feature = {
+    attributes: { BLDG_NUM: '0148', Status: 'Existing' },
+    geometry: { x: -83.013, y: 39.9995 },
+  };
+  for (const building of [{ name: 'S' }, { name: 'S', lat: null, lon: null }]) {
+    const out = buildEntrances([feature], { 148: building });
+    assert.deepEqual(out.entrances, {});
+    assert.equal(out.funnel.noBuildingCoordinate, 1);
+    assert.equal(out.funnel.kept, 0);
+  }
+  const ok = buildEntrances([feature], { 148: { name: 'S', lat: 39.9995, lon: -83.013 } });
+  assert.equal(ok.funnel.kept, 1);
+  assert.equal(ok.entrances['148'][0].metres, 0);
+});

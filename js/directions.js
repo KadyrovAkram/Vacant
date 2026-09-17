@@ -36,11 +36,16 @@ export function plainText(html) {
     .replace(/<div[^>]*>/gi, ' • ')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
+    // LAST, and that order is the whole point. `&amp;` decoded first turns
+    // `&amp;lt;` -- which is how a literal "&lt;" arrives -- into `&lt;`, and
+    // the next line then turns that into a real `<`. A step name carrying
+    // `&amp;lt;script&amp;gt;` came out of here as `<script>`, which is the
+    // one thing the tag strip above exists to prevent.
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -75,7 +80,15 @@ function loadMaps(key, doc = document) {
     const el = doc.createElement('script');
     el.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=${CALLBACK}`;
     el.async = true;
-    el.onerror = () => reject(new Error('maps script failed'));
+    el.onerror = () => {
+      // The failure is retried on the next tap, so this attempt has to leave
+      // nothing behind. Without the cleanup the global callback stayed bound to
+      // this promise's resolve and the dead <script> stayed in the head, one
+      // more of each per retry, on the offline path where retrying is normal.
+      delete globalThis[CALLBACK];
+      el.remove();
+      reject(new Error('maps script failed'));
+    };
     doc.head.appendChild(el);
   }).catch((err) => {
     // A failed load is retried on the next tap rather than remembered forever:
@@ -87,11 +100,20 @@ function loadMaps(key, doc = document) {
   return loadMaps.pending;
 }
 
-const withTimeout = (promise, ms) =>
-  Promise.race([
+// The loser of the race has to be cleaned up. Without the clear, every call
+// left a live timer holding its reject closure for the full TIMEOUT_MS after
+// the answer had already arrived and the sheet had already been painted: six
+// seconds of a page that cannot go idle per tap, and a node process that will
+// not exit for six seconds after the last call.
+const withTimeout = (promise, ms) => {
+  let timer;
+  return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ]);
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+};
 
 // One provider, built once. `consent` is asked on every call and not once at
 // construction, because the answer is the student's and they can withdraw it:

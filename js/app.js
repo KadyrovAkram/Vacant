@@ -562,6 +562,18 @@ function setSheet(px, snap) {
 // setSheet, so one call covers all of them and the class cannot lag a screen
 // behind. showAsk() calls it directly, being the one transition that hides the
 // sheet instead of sizing it.
+// The origin pill is fixed over the top of the viewport and the card and the
+// way both hang a plate there. The pill is one line wide on a desk and three
+// rows tall on a 375px phone that is also offering Pick a building, so the
+// clearance cannot be a constant: it is measured, the way js/install.js
+// measures the bar rail into --bar-h. Zero whenever the pill is not drawn,
+// which is every screen but those two and every reader whose fix landed.
+function measureNote() {
+  const note = $('note');
+  const h = note.hidden ? 0 : Math.ceil(note.getBoundingClientRect().height);
+  document.body.style.setProperty('--note-h', `${h}px`);
+}
+
 function paintMap() {
   document.body.classList.toggle('nomap', state.screen !== 'ask' && !targeted());
 }
@@ -850,7 +862,12 @@ function attachSheet() {
 function pickHoursTerm(hours, current) {
   const want = (current?.termName ?? '').toLowerCase().replace(/\s+/g, '-');
   const terms = Object.entries(hours?.terms ?? {});
-  const exact = terms.find(([slug]) => slug.startsWith(want));
+  // `want` has to be checked before the prefix match, because every slug
+  // startsWith(''). A current.json with no termName therefore took whichever
+  // term the table happened to list first -- Summer, on the committed file --
+  // and ranked an Autumn index against Summer doors, silently and with the
+  // warning below skipped. No termName is no match.
+  const exact = want ? terms.find(([slug]) => slug.startsWith(want)) : null;
   if (exact) return exact;
   // No table for the live term. Every building then reports unknown hours,
   // which is honest, rather than borrowing another term's doors.
@@ -866,12 +883,28 @@ function hoursFor(code, day) {
 
 const nowMinutes = (d) => d.getHours() * 60 + d.getMinutes();
 
+// The index every question about the SHAPE of the class schedule has to be
+// asked, which is the harvested one and never the overlaid one.
+//
+// scheduleFor() empties the class tuples on a Registrar no-classes day, and
+// state.rooms is what it returns. Handing that to busyDayOf or roomSearchOn
+// asks how much of the class schedule is running on a grid something else has
+// just emptied, and the answer is always none: on Autumn Break at 11am the app
+// hid the duration buttons and offered a list of buildings instead of ranking,
+// while resolveState right beside it said RANKED and js/state.js's own note
+// says a no-classes day still ranks with the quiet-campus line saying why. It
+// is the best day of the term for this app and it was the one it refused.
+//
+// It also reached neededMinutes: with no blocks left, busyDayOf returns null
+// and "rest of day" asked for the 30 minute floor.
+const classIndex = () => state.classRooms;
+
 // "rest of day" is not a constant. It is the minutes between now and the last
 // minute the class schedule covers, read off the index, so a term whose
 // evenings end at 20:15 does not get asked for a window running to 22:30.
 function neededMinutes(now) {
   if (state.duration !== 'day') return Number(state.duration) || 30;
-  const busyDay = busyDayOf(state.current, state.rooms);
+  const busyDay = busyDayOf(state.current, classIndex());
   const left = busyDay ? busyDay.latestEnd - nowMinutes(now) : 0;
   return Math.max(30, left);
 }
@@ -963,10 +996,14 @@ function answer() {
   // It runs AFTER the stranded fallback above, which re-enters answer() from
   // the Oval; running it earlier would sweep twice and throw the first away.
   //
-  // The calendar goes in because query() reads classesSuspended off it rather
-  // than off the sweep options. Without it the ladder would read a no-classes
-  // day as a full one and relax against a busy grid describing nobody, while
-  // the list beside it showed all of campus free.
+  // No calendar goes in, and that is the same decision as `classesSuspended:
+  // false` in `ask` above. scheduleFor() has ALREADY emptied the class tuples
+  // on a no-classes day, and what it left behind is the week's registered
+  // events. query() would turn a calendar into sweep's classesSuspended, which
+  // replaces the gap list with the whole open window and so ignores those
+  // events -- the ladder would call a room with a registered event in it free
+  // all day while the rows beside it, from rank(), knew better. Both sweeps
+  // read the one overlaid grid.
   // Nothing is selected until a finger picks one. Asserting row one here is
   // what made the highlight fire on load and never move again.
   state.selected = null;
@@ -1001,10 +1038,7 @@ function answer() {
   // is repainted on the line after, off the same state paintList() just used.
   paintList();
   paintCard();
-  const answered = ladder(rooms, {
-    ...ask,
-    calendar: state.situation?.classesSuspended ? { noClasses: true } : undefined,
-  });
+  const answered = ladder(rooms, ask);
   state.rung = answered.rung;
   state.relaxed = answered.relaxed;
   if (answered.relaxed) paintList();
@@ -1051,6 +1085,11 @@ function shortName(name) {
   const cut = s.indexOf(' - ');
   return s.length > 24 && cut > 0 ? s.slice(cut + 3) : s;
 }
+
+// The index's two capacity sentinels: 0 is unknown and 998 is the ONLINE
+// pseudo-room. Named here because the room screen reads room.cap straight out
+// of the index, where js/engine.js has already dropped both for a row.
+const seatsKnown = (cap) => Number.isFinite(cap) && cap > 0 && cap !== 998;
 
 function roomLabel(r) {
   const n = state.rooms?.rooms?.[r.id]?.n;
@@ -1136,29 +1175,33 @@ const caveatHtml = (coverage) => `<p class="foot">${esc(coverageCaveat(coverage)
 // in every one of the four states below, including the one whose strip says
 // nothing near you is free for that long.
 //
-// It spends dur(state.needed), which is the same function and the same number
-// the strip and the empty screen already print two lines away. The chips said
-// "2h" and needed is minutes, so a second vocabulary for one figure on one
-// screen is how two lines end up disagreeing about the same ask.
+// It spends askedFor(), which is the same function and the same words the
+// strip and the empty screen print two lines away. The chips said "2h" and
+// needed is minutes, so a second vocabulary for one figure on one screen is how
+// two lines end up disagreeing about the same ask.
 //
-// "rest of day" is the exception, and it has to be, because needed is not the
-// ask there. neededMinutes() returns Math.max(30, latestEnd - now), so inside
-// the last half hour of the index's day the clamp wins and dur() renders the
-// floor rather than what was pressed. Measured on the shipped index: Mon
-// 21:26-21:54, Tue 21:16-21:44, Wed 21:21-21:49, Thu 21:16-21:44, Fri
-// 20:06-20:34, Sat 15:31-15:59 all render "30 min" for a button that does not
-// say 30 min, and are indistinguishable from the button that does. Naming the
-// button instead is true at every minute of the day, including 08:00, where
-// dur() would have printed the 12h15 the app derived rather than the thing the
-// user actually chose.
+// "rest of day" is why askedFor() exists at all, because needed is not the ask
+// there. neededMinutes() returns Math.max(30, latestEnd - now), so inside the
+// last half hour of the index's day the clamp wins and dur() renders the floor
+// rather than what was pressed. Measured on the shipped index: Mon 21:26-21:54,
+// Tue 21:16-21:44, Wed 21:21-21:49, Thu 21:16-21:44, Fri 20:06-20:34, Sat
+// 15:31-15:59 all render "30 min" for a button that does not say 30 min, and
+// are indistinguishable from the button that does. Naming the button instead is
+// true at every minute of the day, including 08:00, where dur() would have
+// printed the 12h15 the app derived rather than the thing the user chose.
 //
-// The empty screen above does not get this line. It is not a silent list: it
-// opens with an h2 that states the answer in words, and its last branch already
-// prints dur(state.needed) in a sentence of its own.
+// The line above this one had that right and the three sentences beside it did
+// not: the two strips and the empty screen's last branch each rendered
+// dur(state.needed) raw, so "rest of day" read back as 12h15 at breakfast and
+// as a flat 30 min at night, on the same screen as the line naming the button.
+// rungPhrase() in js/state.js takes a restOfDay flag for this reason. One
+// function now, and every sentence on the screen reads it.
+const askedFor = () => (state.duration === 'day' ? 'the rest of the day' : dur(state.needed));
+
 const asked = () => {
   const needs = describeRoomPreferences(state.preferences);
   const withNeeds = needs.length ? ` with <b>${esc(needs.join(', '))}</b>` : '';
-  return `<p class="asked">You asked for <b>${state.duration === 'day' ? 'the rest of the day' : dur(state.needed)}</b>${withNeeds}.</p>`;
+  return `<p class="asked">You asked for <b>${askedFor()}</b>${withNeeds}.</p>`;
 };
 
 // The sentence the ladder's verdict is worth, or null when the answer gave
@@ -1245,7 +1288,7 @@ function paintList() {
   if (meets) {
     strip = '';
   } else if (shorter) {
-    strip = `<p class="strip">Nothing near you is free for ${dur(state.needed)}. Closest anyway:</p>`;
+    strip = `<p class="strip">Nothing near you is free for ${askedFor()}. Closest anyway:</p>`;
   } else if (waiting) {
     strip = `<p class="strip">Nothing is free this second.</p>`;
   } else {
@@ -1355,7 +1398,7 @@ function emptyAnswer() {
   }
   return {
     heading: 'Nothing open right now.',
-    body: `No room is free for ${dur(state.needed)} today. Try a shorter time.`,
+    body: `No room is free for ${askedFor()} today. Try a shorter time.`,
   };
 }
 
@@ -1587,7 +1630,7 @@ function paintCard() {
     : state.tally?.meets
       ? ''
       : state.tally?.shorter
-        ? `<p class="strip">Nothing near you is free for ${dur(state.needed)}. Closest anyway:</p>`
+        ? `<p class="strip">Nothing near you is free for ${askedFor()}. Closest anyway:</p>`
         : state.tally?.waiting
           ? '<p class="strip">Nothing is free this second.</p>'
           : '<p class="strip">Every building we have hours for is closed.</p>';
@@ -2226,6 +2269,7 @@ function useOrigin(origin, note) {
   $('ask-where').textContent = note ?? '';
   $('ask-where').hidden = !note;
   $('ask-pick').hidden = !note;
+  measureNote();
   paintOriginBar();
 }
 
@@ -2546,7 +2590,11 @@ function roomHtml(id) {
   // the metres, so it was one number rendered twice.
   const facts = [
     walk == null ? '' : `<span class="w">${WALK_ICON}${walk} min walk</span>`,
-    room.cap ? `<span>${room.cap} seats</span>` : '<span>seats unknown</span>',
+    // 998 is the ONLINE sentinel, not a seat count. rowFrom in js/engine.js and
+    // roomMatchesPreferences in js/preferences.js both read it as unknown, and
+    // this line reads the raw index rather than a row, so it has to say so
+    // itself or the room screen contradicts the row that sent the reader here.
+    seatsKnown(room.cap) ? `<span>${room.cap} seats</span>` : '<span>seats unknown</span>',
     type ? `<span>${esc(type)}</span>` : '',
     ...roomFeatureLabels(room).map((label) => `<span>${esc(label)}</span>`),
     // The same word the row carries, on the screen a student lands on after
@@ -2872,6 +2920,8 @@ function showPane(name) {
   // no rounded top, no border and no grip there. index.html hangs those off the
   // body rather than the pane, because the sheet is what has to lose them.
   document.body.classList.toggle('carding', name === 'card');
+  // The picker hides the origin pill, whose one button opens the picker.
+  document.body.classList.toggle('picking', name === 'pick');
   document.body.classList.remove('waying');
   for (const id of PANES) $(id).hidden = id !== name;
   $('find').hidden = name !== 'pick';
@@ -2886,6 +2936,9 @@ function showPane(name) {
   document.body.classList.remove('asking');
   const arrived = state.screen !== name;
   state.screen = name;
+  // After the class change above, because `body.asking #note` is display:none
+  // and a height read before it lifts is a height of nothing.
+  measureNote();
   syncPaneTouch();
   // Arriving re-composes the camera for the strip THIS screen leaves. Without
   // it the view stays fitted for the screen behind: leaving a room slid the walk
@@ -2907,7 +2960,11 @@ function showAsk() {
   $('way').hidden = true;
   $('ask').hidden = false;
   document.body.classList.add('asking');
-  document.body.classList.remove('carding', 'waying');
+  document.body.classList.remove('carding', 'waying', 'picking');
+  // `body.asking #note` hides the pill, so the clearance goes back to zero.
+  // This screen has no plate to push, but the next one is painted from whatever
+  // is left here.
+  measureNote();
   $('sheet').hidden = true;
   $('back').hidden = true;
   $('menu').hidden = true;
@@ -3150,12 +3207,13 @@ function showWay(id) {
   $('menu').hidden = false;
   $('way').hidden = false;
   closeMenu();
-  document.body.classList.remove('asking', 'carding');
+  document.body.classList.remove('asking', 'carding', 'picking');
   // The menu is this screen's only chrome, and it is the same button it was on
   // the card a tap ago, so it is drawn the same: no disc, 40px in a 60px target.
   document.body.classList.add('waying');
   const arrived = state.screen !== 'way';
   state.screen = 'way';
+  measureNote();
   syncPaneTouch();
   paintWay(id, r);
   markRows();
@@ -3310,7 +3368,7 @@ function refresh() {
   state.eventCoverage = overlaid.coverage;
   state.situation = resolveState({ now, current: state.current, index: state.rooms });
   state.rankable = state.situation.ranked;
-  state.scheduled = roomSearchOn({ now, current: state.current, index: state.rooms, ranked: state.rankable });
+  state.scheduled = roomSearchOn({ now, current: state.current, index: classIndex(), ranked: state.rankable });
   paintGate();
   if (!state.rankable) {
     if (state.screen !== 'near' && state.screen !== 'about') showAsk();
@@ -3368,8 +3426,8 @@ function paintGate() {
       const said = unscheduledGate({
         now,
         current: state.current,
-        index: state.rooms,
-        busyDay: busyDayOf(state.current, state.rooms),
+        index: classIndex(),
+        busyDay: busyDayOf(state.current, classIndex()),
         opening: firstDoor(now),
         openNow: openDoorCount({
           counts: state.counts,
@@ -3734,7 +3792,12 @@ async function boot() {
 
   state.situation = resolveState({ now, current, index: state.rooms });
   state.rankable = state.situation.ranked;
-  state.scheduled = roomSearchOn({ now, current, index: rooms, ranked: state.rankable });
+  // The same index refresh() asks, for the same reason classIndex() exists: the
+  // overlay adds the week's events and a one-date session and, on a no-classes
+  // day, removes every class tuple, all of which move the share scheduleDarkOn
+  // reads and the quantiles busyDayOf measures. Boot and the first repaint must
+  // not answer differently about the same minute.
+  state.scheduled = roomSearchOn({ now, current, index: classIndex(), ranked: state.rankable });
 
   state.ready = true;
   for (const el of document.querySelectorAll('#ask [data-min][disabled]')) el.disabled = false;
@@ -3825,6 +3888,7 @@ window.addEventListener('DOMContentLoaded', () => {
   attachSheet();
   attachMenu();
   window.addEventListener('resize', () => {
+    measureNote();
     if (state.screen !== 'ask') sheetHeight();
     // surface() reallocates the backing store on the next frame and the band
     // moves with the height, so a resize that does not reach the loop leaves a

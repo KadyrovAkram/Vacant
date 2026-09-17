@@ -106,8 +106,9 @@ async function writeAtomic(path, text) {
 // answer to "it is unknown whether an old term's page survives".
 async function fetchCached(url, slug, { validate, dryRun } = {}) {
   const cachePath = join(CACHE_DIR, `${slug}.html`);
+  let html;
   try {
-    const html = await fetchText(url);
+    html = await fetchText(url);
     if (!html || html.length < 1000) throw new Error(`suspiciously short response (${html?.length} bytes)`);
     // Validate BEFORE overwriting the cache. fetch follows redirects, so a
     // removed term page that 301s to the pool index comes back as a healthy 200
@@ -118,9 +119,6 @@ async function fetchCached(url, slug, { validate, dryRun } = {}) {
       const problem = validate(html);
       if (problem) throw new Error(`response failed validation: ${problem}`);
     }
-    // A dry run must not touch committed files.
-    if (!dryRun) await writeAtomic(cachePath, html);
-    return { html, from: 'live' };
   } catch (err) {
     if (existsSync(cachePath)) {
       console.warn(`  warn  ${slug}: fetch failed (${err.message}), using the committed cache`);
@@ -128,6 +126,14 @@ async function fetchCached(url, slug, { validate, dryRun } = {}) {
     }
     throw err;
   }
+  // A dry run must not touch committed files, and the write sits outside the
+  // try, the way scripts/fetch-calendar.mjs's save() already does it. A write
+  // that fails -- no space, no permission, a read-only checkout --
+  // is not a failed fetch, and inside the try it was caught as one: the run
+  // discarded a good live page, silently fell back to the committed copy, and
+  // printed "fetch failed" over a fetch that had worked.
+  if (!dryRun) await writeAtomic(cachePath, html);
+  return { html, from: 'live' };
 }
 
 export function discoverTermLinks(indexHtml) {
@@ -136,10 +142,22 @@ export function discoverTermLinks(indexHtml) {
   let m;
   while ((m = re.exec(indexHtml))) {
     const href = m[1];
-    const slug = href.replace(/\/+$/, '').split('/').pop();
+    // Resolved against the origin and compared as one. The test below has
+    // always asserted every url comes back on registrar.osu.edu, and nothing
+    // here enforced it: an absolute href was taken as given, and whatever it
+    // named would be fetched and written into data/cache/registrar as a
+    // Registrar hours page.
+    let url;
+    try {
+      url = new URL(href, `${ORIGIN}/`);
+    } catch {
+      continue;
+    }
+    if (url.origin !== ORIGIN) continue;
+    const slug = url.pathname.replace(/\/+$/, '').split('/').pop();
     // The index links to itself; that is the container, not a term.
     if (!slug || slug === 'classroom-pool-building-schedule') continue;
-    found.set(slug, href.startsWith('http') ? href : `${ORIGIN}${href}`);
+    found.set(slug, url.href);
   }
   return [...found.entries()].map(([slug, url]) => ({ slug, url }));
 }

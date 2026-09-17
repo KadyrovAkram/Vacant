@@ -75,9 +75,21 @@ export function findTermLink(indexHtml, name) {
   const links = new Map();
   for (const m of indexHtml.matchAll(/href="([^"]*general-assignment-rooms[^"]*)"/gi)) {
     const href = m[1];
-    const slug = href.replace(/\/+$/, '').split('/').pop();
+    // On the Registrar, or not followed at all. These hrefs come off a page
+    // this script does not control, and the url it picks here is fetched and
+    // written into data/cache as a Registrar page. Its sibling in
+    // scripts/fetch-calendar.mjs tests the origin; this one took any absolute
+    // URL the index carried.
+    let url;
+    try {
+      url = new URL(href, `${ORIGIN}/`);
+    } catch {
+      continue;
+    }
+    if (url.origin !== ORIGIN) continue;
+    const slug = url.pathname.replace(/\/+$/, '').split('/').pop();
     if (!slug || slug === 'general-assignment-rooms') continue;
-    links.set(slug, href.startsWith('http') ? href : `${ORIGIN}${href}`);
+    links.set(slug, url.href);
   }
   const hit = [...links.keys()].find((slug) => slug.includes(want));
   return { slug: hit ?? null, url: hit ? links.get(hit) : null, all: [...links.keys()] };
@@ -85,8 +97,9 @@ export function findTermLink(indexHtml, name) {
 
 async function fetchCached(url, slug, { validate, dryRun } = {}) {
   const cachePath = join(CACHE_DIR, `${slug}.html`);
+  let html;
   try {
-    const html = await fetchText(url);
+    html = await fetchText(url);
     if (!html || html.length < 1000) throw new Error(`suspiciously short response (${html?.length} bytes)`);
     // Validate before overwriting the cache. A removed term page redirects to
     // the index and comes back as a healthy 200, and writing that first would
@@ -95,8 +108,6 @@ async function fetchCached(url, slug, { validate, dryRun } = {}) {
       const problem = validate(html);
       if (problem) throw new Error(`response failed validation: ${problem}`);
     }
-    if (!dryRun) await writeAtomic(cachePath, html);
-    return { html, from: 'live' };
   } catch (err) {
     if (existsSync(cachePath)) {
       console.warn(`  warn  ${slug}: fetch failed (${err.message}), using the committed cache`);
@@ -104,6 +115,13 @@ async function fetchCached(url, slug, { validate, dryRun } = {}) {
     }
     throw err;
   }
+  // Outside the try, the way scripts/fetch-calendar.mjs's save() already does
+  // it. A dry run still writes nothing. A write that fails -- no space, no permission, a read-only checkout --
+  // is not a failed fetch, and inside the try it was caught as one: the run
+  // discarded a good live page, silently fell back to the committed copy, and
+  // printed "fetch failed" over a fetch that had worked.
+  if (!dryRun) await writeAtomic(cachePath, html);
+  return { html, from: 'live' };
 }
 
 async function main() {
